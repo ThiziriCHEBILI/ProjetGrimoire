@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
+const userRoutes = require("./routes/user");
 const app = express();
 
 mongoose
@@ -21,6 +22,8 @@ app.use((req, res, next) => {
   );
   next();
 });
+
+app.use("/api/auth", userRoutes);
 
 app.get("/api/test", (req, res, next) => {
   res.status(200).json({ message: "Le serveur fonction !" });
