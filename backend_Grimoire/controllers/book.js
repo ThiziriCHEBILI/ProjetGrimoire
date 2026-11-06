@@ -121,6 +121,8 @@ exports.rateBook = (req, res, next) => {
       }
 
       book.ratings.push({ userId: req.auth.userId, grade: grade });
+      const total = book.ratings.reduce((sum, rating) => sum + rating.grade, 0);
+      book.averageRating = Math.round((total / book.ratings.length) * 10) / 10;
 
       book
         .save()
