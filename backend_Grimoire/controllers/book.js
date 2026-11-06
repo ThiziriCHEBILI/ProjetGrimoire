@@ -1,3 +1,4 @@
+const fs = require("fs");
 const Book = require("../models/Book");
 
 exports.getAllBooks = (req, res, next) => {
@@ -26,5 +27,44 @@ exports.createBook = (req, res, next) => {
   book
     .save()
     .then(() => res.status(201).json({ message: "Livre enregistré !" }))
+    .catch((error) => res.status(400).json({ error }));
+};
+
+exports.modifyBook = (req, res, next) => {
+  const bookObject = req.file
+    ? {
+        ...JSON.parse(req.body.book),
+        imageUrl: `${req.protocol}://${req.get("host")}/images/${req.file.filename}`,
+      }
+    : { ...req.body };
+
+  delete bookObject._id;
+  delete bookObject.userId;
+  delete bookObject.ratings;
+  delete bookObject.averageRating;
+
+  Book.findOne({ _id: req.params.id })
+    .then((book) => {
+      if (!book) {
+        return res.status(404).json({ message: "Livre non trouvé" });
+      }
+      if (book.userId !== req.auth.userId) {
+        return res.status(403).json({ message: "403: unauthorized request" });
+      }
+      Book.updateOne(
+        { _id: req.params.id },
+        { ...bookObject, _id: req.params.id },
+      )
+        .then(() => {
+          if (req.file) {
+            const oldFilename = book.imageUrl.split("/images/")[1];
+            fs.unlink(`images/${oldFilename}`, (error) => {
+              if (error) console.log(error);
+            });
+          }
+          res.status(200).json({ message: "Livre modifié !" });
+        })
+        .catch((error) => res.status(400).json({ error }));
+    })
     .catch((error) => res.status(400).json({ error }));
 };
