@@ -1,7 +1,9 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
+const path = require("path");
 const userRoutes = require("./routes/user");
+const bookRoutes = require("./routes/book");
 const app = express();
 
 mongoose
@@ -23,10 +25,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use("/images", express.static(path.join(__dirname, "images")));
 app.use("/api/auth", userRoutes);
-
-app.get("/api/test", (req, res, next) => {
-  res.status(200).json({ message: "Le serveur fonction !" });
-});
+app.use("/api/books", bookRoutes);
 
 module.exports = app;
