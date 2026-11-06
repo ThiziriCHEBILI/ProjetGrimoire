@@ -68,3 +68,22 @@ exports.modifyBook = (req, res, next) => {
     })
     .catch((error) => res.status(400).json({ error }));
 };
+
+exports.deleteBook = (req, res, next) => {
+  Book.findOne({ _id: req.params.id })
+    .then((book) => {
+      if (!book) {
+        return res.status(404).json({ message: "Livre non trouvé" });
+      }
+      if (book.userId !== req.auth.userId) {
+        return res.status(403).json({ message: "403: unauthorized request" });
+      }
+      const filename = book.imageUrl.split("/images/")[1];
+      fs.unlink(`images/${filename}`, () => {
+        Book.deleteOne({ _id: req.params.id })
+          .then(() => res.status(200).json({ message: "Livre supprimé !" }))
+          .catch((error) => res.status(400).json({ error }));
+      });
+    })
+    .catch((error) => res.status(500).json({ error }));
+};
