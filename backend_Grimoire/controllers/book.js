@@ -99,6 +99,7 @@ exports.modifyBook = (req, res, next) => {
       Book.updateOne(
         { _id: req.params.id },
         { ...bookObject, _id: req.params.id },
+        { runValidators: true },
       )
         .then(() => {
           // si l'image a changé, on supprime l'ancienne du dossier images
@@ -110,11 +111,19 @@ exports.modifyBook = (req, res, next) => {
           }
           res.status(200).json({ message: "Livre modifié !" });
         })
-        .catch((error) => res.status(400).json({ error }));
+        .catch((error) => {
+          if (error.name === "ValidationError") {
+            const errors = {};
+            for (const field in error.errors) {
+              errors[field] = error.errors[field].message;
+            }
+            return res.status(400).json({ errors });
+          }
+          res.status(500).json({ error });
+        });
     })
     .catch((error) => res.status(500).json({ error }));
 };
-
 // deleteBook : supprime un livre et son image (seulement par son créateur)
 // Route : DELETE /api/books/:id
 exports.deleteBook = (req, res, next) => {
