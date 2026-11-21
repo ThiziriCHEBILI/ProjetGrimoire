@@ -29,4 +29,20 @@ app.use("/images", express.static(path.join(__dirname, "images")));
 app.use("/api/auth", userRoutes);
 app.use("/api/books", bookRoutes);
 
+// aucune route n'a répondu : 404 en JSON
+app.use((req, res) => {
+  res.status(404).json({ message: "Ressource introuvable." });
+});
+
+// erreurs non gérées : réponse JSON, la trace reste dans le terminal
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  if (err instanceof SyntaxError) {
+    return res
+      .status(400)
+      .json({ message: "Les données envoyées ne sont pas un JSON valide." });
+  }
+  res.status(500).json({ message: "Erreur du serveur." });
+});
+
 module.exports = app;
