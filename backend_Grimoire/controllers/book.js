@@ -58,7 +58,16 @@ exports.createBook = (req, res, next) => {
   book
     .save() // enregistre dans la base
     .then(() => res.status(201).json({ message: "Livre enregistré !" }))
-    .catch((error) => res.status(400).json({ error }));
+    .catch((error) => {
+      if (error.name === "ValidationError") {
+        const errors = {};
+        for (const field in error.errors) {
+          errors[field] = error.errors[field].message;
+        }
+        return res.status(400).json({ errors });
+      }
+      res.status(500).json({ error });
+    });
 };
 
 // modifyBook : modifie un livre (seulement par son créateur)
