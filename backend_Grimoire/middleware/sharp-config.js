@@ -17,5 +17,7 @@ module.exports = (req, res, next) => {
       req.file.filename = filename;
       next();
     })
-    .catch((error) => res.status(400).json({ error }));
+    .catch(() =>
+      res.status(400).json({ message: "Le fichier n'est pas une image." }),
+    );
 };
