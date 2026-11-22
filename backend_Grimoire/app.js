@@ -44,8 +44,13 @@ app.use((err, req, res, next) => {
   }
   if (err.code === "LIMIT_FILE_SIZE") {
     return res
-      .status(400)
+      .status(413)
       .json({ message: "L'image est trop lourde (5 Mo maximum)." });
+  }
+  if (err.name === "MulterError") {
+    return res
+      .status(400)
+      .json({ message: "L'image doit être envoyée dans le champ image." });
   }
   res.status(500).json({ message: "Erreur du serveur." });
 });
