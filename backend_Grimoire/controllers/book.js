@@ -41,7 +41,15 @@ exports.createBook = (req, res, next) => {
     return res.status(400).json({ message: "Image obligatoire" });
   }
 
-  const bookObject = JSON.parse(req.body.book);
+  let bookObject;
+  try {
+    bookObject = JSON.parse(req.body.book);
+  } catch (error) {
+    fs.unlink(`images/${req.file.filename}`, () => {});
+    return res
+      .status(400)
+      .json({ message: "Les données envoyées ne sont pas un JSON valide." });
+  }
 
   // on ne fait pas confiance au front pour ces deux champs
   delete bookObject._id;
@@ -59,6 +67,7 @@ exports.createBook = (req, res, next) => {
     .save() // enregistre dans la base
     .then(() => res.status(201).json({ message: "Livre enregistré !" }))
     .catch((error) => {
+      fs.unlink(`images/${req.file.filename}`, () => {});
       if (error.name === "ValidationError") {
         const errors = {};
         for (const field in error.errors) {
