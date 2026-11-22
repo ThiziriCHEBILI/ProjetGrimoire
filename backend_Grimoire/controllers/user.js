@@ -3,6 +3,11 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 exports.signup = (req, res, next) => {
+  if (!req.body || !req.body.email || !req.body.password) {
+    return res
+      .status(400)
+      .json({ message: "Email et mot de passe obligatoires." });
+  }
   bcrypt
     .hash(req.body.password, 10)
     .then((hash) => {
@@ -19,6 +24,11 @@ exports.signup = (req, res, next) => {
 };
 
 exports.login = (req, res, next) => {
+  if (!req.body || !req.body.email || !req.body.password) {
+    return res
+      .status(400)
+      .json({ message: "Email et mot de passe obligatoires." });
+  }
   User.findOne({ email: req.body.email })
     .then((user) => {
       if (!user) {
