@@ -42,6 +42,11 @@ app.use((err, req, res, next) => {
       .status(400)
       .json({ message: "Les données envoyées ne sont pas un JSON valide." });
   }
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res
+      .status(400)
+      .json({ message: "L'image est trop lourde (5 Mo maximum)." });
+  }
   res.status(500).json({ message: "Erreur du serveur." });
 });
 
