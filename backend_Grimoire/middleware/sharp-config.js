@@ -1,6 +1,5 @@
 const sharp = require("sharp");
 const path = require("path");
-const fs = require("fs");
 
 module.exports = (req, res, next) => {
   if (!req.file) {
@@ -16,12 +15,6 @@ module.exports = (req, res, next) => {
     .toFile(path.join("images", filename))
     .then(() => {
       req.file.filename = filename;
-      // si la requête finit par une erreur, l'image ne sert à rien : on la supprime
-      res.on("finish", () => {
-        if (res.statusCode >= 400) {
-          fs.unlink(path.join("images", filename), () => {});
-        }
-      });
       next();
     })
     .catch(() =>
