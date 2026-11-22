@@ -139,6 +139,11 @@ exports.modifyBook = (req, res, next) => {
             }
             return res.status(400).json({ errors });
           }
+          if (error.name === "CastError") {
+            return res
+              .status(400)
+              .json({ errors: { [error.path]: error.message } });
+          }
           res.status(500).json({ error });
         });
     })
