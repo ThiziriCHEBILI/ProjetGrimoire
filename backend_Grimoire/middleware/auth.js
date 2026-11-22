@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { StatusCodes } = require("http-status-codes");
 
 module.exports = (req, res, next) => {
   try {
@@ -8,6 +9,8 @@ module.exports = (req, res, next) => {
     req.auth = { userId: userId };
     next();
   } catch (error) {
-    res.status(401).json({ message: "token absent ou invalide." });
+    res
+      .status(StatusCodes.UNAUTHORIZED)
+      .json({ message: "token absent ou invalide." });
   }
 };

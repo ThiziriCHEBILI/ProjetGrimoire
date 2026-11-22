@@ -5,11 +5,14 @@ const auth = require("../middleware/auth");
 const multer = require("../middleware/multer-config");
 const sharp = require("../middleware/sharp-config");
 const mongoose = require("mongoose");
+const { StatusCodes } = require("http-status-codes");
 
 // un id mal écrit (ex. /api/books/abc) → 400, avant auth, multer et sharp
 router.param("id", (req, res, next, id) => {
   if (!mongoose.isValidObjectId(id)) {
-    return res.status(400).json({ message: "Identifiant invalide." });
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Identifiant invalide." });
   }
   next();
 });

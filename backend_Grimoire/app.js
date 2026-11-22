@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
+const { StatusCodes } = require("http-status-codes");
 const userRoutes = require("./routes/user");
 const bookRoutes = require("./routes/book");
 const app = express();
@@ -31,7 +32,7 @@ app.use("/api/books", bookRoutes);
 
 // aucune route n'a répondu : 404 en JSON
 app.use((req, res) => {
-  res.status(404).json({ message: "Ressource introuvable." });
+  res.status(StatusCodes.NOT_FOUND).json({ message: "Ressource introuvable." });
 });
 
 // erreurs non gérées : réponse JSON, la trace reste dans le terminal
@@ -39,20 +40,22 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   if (err instanceof SyntaxError) {
     return res
-      .status(400)
+      .status(StatusCodes.BAD_REQUEST)
       .json({ message: "Les données envoyées ne sont pas un JSON valide." });
   }
   if (err.code === "LIMIT_FILE_SIZE") {
     return res
-      .status(413)
+      .status(StatusCodes.REQUEST_TOO_LONG)
       .json({ message: "L'image est trop lourde (5 Mo maximum)." });
   }
   if (err.name === "MulterError") {
     return res
-      .status(400)
+      .status(StatusCodes.BAD_REQUEST)
       .json({ message: "L'image doit être envoyée dans le champ image." });
   }
-  res.status(500).json({ message: "Erreur du serveur." });
+  res
+    .status(StatusCodes.INTERNAL_SERVER_ERROR)
+    .json({ message: "Erreur du serveur." });
 });
 
 module.exports = app;
