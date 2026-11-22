@@ -82,12 +82,20 @@ exports.createBook = (req, res, next) => {
 // modifyBook : modifie un livre (seulement par son créateur)
 // Route : PUT /api/books/:id
 exports.modifyBook = (req, res, next) => {
-  const bookObject = req.file
-    ? {
-        ...JSON.parse(req.body.book),
-        imageUrl: `${req.protocol}://${req.get("host")}/images/${req.file.filename}`,
-      }
-    : { ...req.body };
+  let bookObject;
+  try {
+    bookObject = req.file
+      ? {
+          ...JSON.parse(req.body.book),
+          imageUrl: `${req.protocol}://${req.get("host")}/images/${req.file.filename}`,
+        }
+      : { ...req.body };
+  } catch (error) {
+    fs.unlink(`images/${req.file.filename}`, () => {});
+    return res
+      .status(400)
+      .json({ message: "Les données envoyées ne sont pas un JSON valide." });
+  }
 
   // champs qu'on ne peut pas changer
   delete bookObject._id;
@@ -98,10 +106,12 @@ exports.modifyBook = (req, res, next) => {
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (!book) {
+        if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
         return res.status(404).json({ message: "Livre non trouvé" });
       }
       // on compare le créateur du livre avec la personne du token
       if (book.userId !== req.auth.userId) {
+        if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
         return res.status(403).json({ message: "403: unauthorized request" });
       }
 
@@ -121,6 +131,7 @@ exports.modifyBook = (req, res, next) => {
           res.status(200).json({ message: "Livre modifié !" });
         })
         .catch((error) => {
+          if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
           if (error.name === "ValidationError") {
             const errors = {};
             for (const field in error.errors) {
@@ -131,7 +142,10 @@ exports.modifyBook = (req, res, next) => {
           res.status(500).json({ error });
         });
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => {
+      if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
+      res.status(500).json({ error });
+    });
 };
 // deleteBook : supprime un livre et son image (seulement par son créateur)
 // Route : DELETE /api/books/:id
