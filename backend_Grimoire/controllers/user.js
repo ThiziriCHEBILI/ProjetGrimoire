@@ -1,11 +1,12 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { StatusCodes } = require("http-status-codes");
 
 exports.signup = (req, res, next) => {
   if (!req.body || !req.body.email || !req.body.password) {
     return res
-      .status(400)
+      .status(StatusCodes.BAD_REQUEST)
       .json({ message: "Email et mot de passe obligatoires." });
   }
   bcrypt
@@ -17,32 +18,42 @@ exports.signup = (req, res, next) => {
       });
       user
         .save()
-        .then(() => res.status(201).json({ message: "Utilisateur créé !" }))
+        .then(() =>
+          res
+            .status(StatusCodes.CREATED)
+            .json({ message: "Utilisateur créé !" }),
+        )
         .catch((error) => {
           if (error.name === "ValidationError") {
             const errors = {};
             for (const field in error.errors) {
               errors[field] = error.errors[field].message;
             }
-            return res.status(400).json({ errors });
+            return res.status(StatusCodes.BAD_REQUEST).json({ errors });
           }
-          res.status(500).json({ message: "Erreur du serveur." });
+          res
+            .status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .json({ message: "Erreur du serveur." });
         });
     })
-    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
+    .catch((error) =>
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." }),
+    );
 };
 
 exports.login = (req, res, next) => {
   if (!req.body || !req.body.email || !req.body.password) {
     return res
-      .status(400)
+      .status(StatusCodes.BAD_REQUEST)
       .json({ message: "Email et mot de passe obligatoires." });
   }
   User.findOne({ email: req.body.email })
     .then((user) => {
       if (!user) {
         return res
-          .status(401)
+          .status(StatusCodes.UNAUTHORIZED)
           .json({ message: "Paire identifiant/mot de passe incorrecte" });
       }
 
@@ -51,10 +62,10 @@ exports.login = (req, res, next) => {
         .then((valid) => {
           if (!valid) {
             return res
-              .status(401)
+              .status(StatusCodes.UNAUTHORIZED)
               .json({ message: "Paire identifiant/mot de passe incorrecte" });
           }
-          res.status(200).json({
+          res.status(StatusCodes.OK).json({
             userId: user._id,
             token: jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
               expiresIn: "24h",
@@ -62,8 +73,14 @@ exports.login = (req, res, next) => {
           });
         })
         .catch((error) =>
-          res.status(500).json({ message: "Erreur du serveur." }),
+          res
+            .status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .json({ message: "Erreur du serveur." }),
         );
     })
-    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
+    .catch((error) =>
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." }),
+    );
 };
