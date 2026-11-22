@@ -2,56 +2,49 @@ const fs = require("fs");
 const Book = require("../models/Book");
 const { StatusCodes } = require("http-status-codes");
 
-// getAllBooks : renvoie tous les livres
-// Route : GET /api/books (pas besoin d'être connecté)
-exports.getAllBooks = (req, res, next) => {
-  Book.find()
-    .then((books) => res.status(StatusCodes.OK).json(books))
-    .catch((error) =>
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ message: "Erreur du serveur." }),
-    );
+// GET /api/books (public)
+exports.getAllBooks = async (req, res, next) => {
+  try {
+    const books = await Book.find();
+    res.status(StatusCodes.OK).json(books);
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Erreur du serveur." });
+  }
 };
 
-// getOneBook : renvoie un seul livre, avec son id
-// Route : GET /api/books/:id (pas besoin d'être connecté)
-exports.getOneBook = (req, res, next) => {
-  Book.findOne({ _id: req.params.id })
-    .then((book) => {
-      // la recherche a marché, mais aucun livre avec cet id
-      if (!book) {
-        return res
-          .status(StatusCodes.NOT_FOUND)
-          .json({ message: "Livre non trouvé" });
-      }
-      res.status(StatusCodes.OK).json(book);
-    })
-    .catch((error) =>
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ message: "Erreur du serveur." }),
-    );
+// GET /api/books/:id (public)
+exports.getOneBook = async (req, res, next) => {
+  try {
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "Livre non trouvé" });
+    }
+    res.status(StatusCodes.OK).json(book);
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Erreur du serveur." });
+  }
 };
 
-// getBestRating : renvoie les 3 livres les mieux notés
-// Route : GET /api/books/bestrating
-exports.getBestRating = (req, res, next) => {
-  Book.find()
-    .sort({ averageRating: -1 })
-    .limit(3) // on garde les 3 premiers
-    .then((books) => res.status(StatusCodes.OK).json(books))
-    .catch((error) =>
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ message: "Erreur du serveur." }),
-    );
+// GET /api/books/bestrating (public) : les 3 livres les mieux notés
+exports.getBestRating = async (req, res, next) => {
+  try {
+    const books = await Book.find().sort({ averageRating: -1 }).limit(3);
+    res.status(StatusCodes.OK).json(books);
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Erreur du serveur." });
+  }
 };
 
-// createBook : crée un livre
-// Route : POST /api/books
-exports.createBook = (req, res, next) => {
-  // sans image, on ne peut pas créer l'imageUrl
+// POST /api/books (auth → multer → sharp)
+exports.createBook = async (req, res, next) => {
   if (!req.file) {
     return res
       .status(StatusCodes.BAD_REQUEST)
@@ -68,7 +61,7 @@ exports.createBook = (req, res, next) => {
       .json({ message: "Les données envoyées ne sont pas un JSON valide." });
   }
 
-  // on ne fait pas confiance au front pour ces deux champs
+  // on ne fait pas confiance au front : l'id est créé par MongoDB, le userId vient du token
   delete bookObject._id;
   delete bookObject.userId;
 
@@ -80,29 +73,28 @@ exports.createBook = (req, res, next) => {
     averageRating: 0,
   });
 
-  book
-    .save() // enregistre dans la base
-    .then(() =>
-      res.status(StatusCodes.CREATED).json({ message: "Livre enregistré !" }),
-    )
-    .catch((error) => {
-      fs.unlink(`images/${req.file.filename}`, () => {});
-      if (error.name === "ValidationError") {
-        const errors = {};
-        for (const field in error.errors) {
-          errors[field] = error.errors[field].message;
-        }
-        return res.status(StatusCodes.BAD_REQUEST).json({ errors });
+  try {
+    await book.save();
+    res.status(StatusCodes.CREATED).json({ message: "Livre enregistré !" });
+  } catch (error) {
+    // le livre n'est pas enregistré : on supprime l'image pour ne pas la laisser orpheline
+    fs.unlink(`images/${req.file.filename}`, () => {});
+    if (error.name === "ValidationError") {
+      const errors = {};
+      for (const field in error.errors) {
+        errors[field] = error.errors[field].message;
       }
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ message: "Erreur du serveur." });
-    });
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors });
+    }
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Erreur du serveur." });
+  }
 };
 
-// modifyBook : modifie un livre (seulement par son créateur)
-// Route : PUT /api/books/:id
-exports.modifyBook = (req, res, next) => {
+// PUT /api/books/:id (auth → multer → sharp), seulement par le créateur du livre
+exports.modifyBook = async (req, res, next) => {
+  // avec une nouvelle image, le livre arrive en texte dans req.body.book
   let bookObject;
   try {
     bookObject = req.file
@@ -118,111 +110,95 @@ exports.modifyBook = (req, res, next) => {
       .json({ message: "Les données envoyées ne sont pas un JSON valide." });
   }
 
-  // champs qu'on ne peut pas changer
+  // champs que l'utilisateur n'a pas le droit de changer
   delete bookObject._id;
   delete bookObject.userId;
   delete bookObject.ratings;
   delete bookObject.averageRating;
 
-  Book.findOne({ _id: req.params.id })
-    .then((book) => {
-      if (!book) {
-        if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-        return res
-          .status(StatusCodes.NOT_FOUND)
-          .json({ message: "Livre non trouvé" });
-      }
-      // on compare le créateur du livre avec la personne du token
-      if (book.userId !== req.auth.userId) {
-        if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-        return res
-          .status(StatusCodes.FORBIDDEN)
-          .json({ message: "403: unauthorized request" });
-      }
-
-      Book.updateOne(
-        { _id: req.params.id },
-        { ...bookObject, _id: req.params.id },
-        { runValidators: true },
-      )
-        .then(() => {
-          // si l'image a changé, on supprime l'ancienne du dossier images
-          if (req.file) {
-            const oldFilename = book.imageUrl.split("/images/")[1];
-            fs.unlink(`images/${oldFilename}`, (error) => {
-              if (error) console.log(error);
-            });
-          }
-          res.status(StatusCodes.OK).json({ message: "Livre modifié !" });
-        })
-        .catch((error) => {
-          if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-          if (error.name === "ValidationError") {
-            const errors = {};
-            for (const field in error.errors) {
-              errors[field] = error.errors[field].message;
-            }
-            return res.status(StatusCodes.BAD_REQUEST).json({ errors });
-          }
-          if (error.name === "CastError") {
-            return res
-              .status(StatusCodes.BAD_REQUEST)
-              .json({ errors: { [error.path]: error.message } });
-          }
-          res
-            .status(StatusCodes.INTERNAL_SERVER_ERROR)
-            .json({ message: "Erreur du serveur." });
-        });
-    })
-    .catch((error) => {
+  try {
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
       if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ message: "Erreur du serveur." });
-    });
-};
-// deleteBook : supprime un livre et son image (seulement par son créateur)
-// Route : DELETE /api/books/:id
-exports.deleteBook = (req, res, next) => {
-  Book.findOne({ _id: req.params.id })
-    .then((book) => {
-      if (!book) {
-        return res
-          .status(StatusCodes.NOT_FOUND)
-          .json({ message: "Livre non trouvé" });
-      }
-      if (book.userId !== req.auth.userId) {
-        return res
-          .status(StatusCodes.FORBIDDEN)
-          .json({ message: "403: unauthorized request" });
-      }
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "Livre non trouvé" });
+    }
+    if (book.userId !== req.auth.userId) {
+      if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .json({ message: "403: unauthorized request" });
+    }
 
-      // on récupère le nom du fichier à partir de l'imageUrl
-      const filename = book.imageUrl.split("/images/")[1];
-
-      // d'abord on supprime l'image, ensuite le livre
-      fs.unlink(`images/${filename}`, () => {
-        Book.deleteOne({ _id: req.params.id })
-          .then(() =>
-            res.status(StatusCodes.OK).json({ message: "Livre supprimé !" }),
-          )
-          .catch((error) =>
-            res
-              .status(StatusCodes.INTERNAL_SERVER_ERROR)
-              .json({ message: "Erreur du serveur." }),
-          );
-      });
-    })
-    .catch((error) =>
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ message: "Erreur du serveur." }),
+    // updateOne ne lance pas les validateurs par défaut
+    await Book.updateOne(
+      { _id: req.params.id },
+      { ...bookObject, _id: req.params.id },
+      { runValidators: true },
     );
+
+    // la modification a réussi : on peut supprimer l'ancienne image
+    if (req.file) {
+      const oldFilename = book.imageUrl.split("/images/")[1];
+      fs.unlink(`images/${oldFilename}`, (error) => {
+        if (error) console.log(error);
+      });
+    }
+    res.status(StatusCodes.OK).json({ message: "Livre modifié !" });
+  } catch (error) {
+    if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
+    if (error.name === "ValidationError") {
+      const errors = {};
+      for (const field in error.errors) {
+        errors[field] = error.errors[field].message;
+      }
+      return res.status(StatusCodes.BAD_REQUEST).json({ errors });
+    }
+    // avec updateOne, une année en texte donne une CastError (pas une ValidationError)
+    if (error.name === "CastError") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ errors: { [error.path]: error.message } });
+    }
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Erreur du serveur." });
+  }
 };
 
-// rateBook : ajoute une note et recalcule la moyenne
-// Route : POST /api/books/:id/rating
-exports.rateBook = (req, res, next) => {
+// DELETE /api/books/:id (auth), seulement par le créateur du livre
+exports.deleteBook = async (req, res, next) => {
+  try {
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "Livre non trouvé" });
+    }
+    if (book.userId !== req.auth.userId) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .json({ message: "403: unauthorized request" });
+    }
+
+    await Book.deleteOne({ _id: req.params.id });
+
+    // le livre est supprimé : on peut supprimer son image
+    const filename = book.imageUrl.split("/images/")[1];
+    fs.unlink(`images/${filename}`, (error) => {
+      if (error) console.log(error);
+    });
+    res.status(StatusCodes.OK).json({ message: "Livre supprimé !" });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Erreur du serveur." });
+  }
+};
+
+// POST /api/books/:id/rating (auth) : ajoute une note et recalcule la moyenne
+exports.rateBook = async (req, res, next) => {
   const grade = Number(req.body.rating);
 
   if (isNaN(grade) || grade < 0 || grade > 5) {
@@ -231,41 +207,36 @@ exports.rateBook = (req, res, next) => {
       .json({ message: "La note doit être comprise entre 0 et 5" });
   }
 
-  Book.findOne({ _id: req.params.id })
-    .then((book) => {
-      if (!book) {
-        return res
-          .status(StatusCodes.NOT_FOUND)
-          .json({ message: "Livre non trouvé" });
-      }
+  try {
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "Livre non trouvé" });
+    }
 
-      // on cherche si cette personne a déjà noté ce livre
-      const alreadyRated = book.ratings.find(
-        (rating) => rating.userId === req.auth.userId,
-      );
-      if (alreadyRated) {
-        return res
-          .status(StatusCodes.BAD_REQUEST)
-          .json({ message: "Vous avez déjà noté ce livre" });
-      }
-
-      book.ratings.push({ userId: req.auth.userId, grade: grade });
-
-      const total = book.ratings.reduce((sum, rating) => sum + rating.grade, 0);
-      book.averageRating = Math.round((total / book.ratings.length) * 10) / 10;
-
-      book
-        .save()
-        .then((updatedBook) => res.status(StatusCodes.OK).json(updatedBook))
-        .catch((error) =>
-          res
-            .status(StatusCodes.INTERNAL_SERVER_ERROR)
-            .json({ message: "Erreur du serveur." }),
-        );
-    })
-    .catch((error) =>
-      res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .json({ message: "Erreur du serveur." }),
+    // un utilisateur ne peut noter un livre qu'une seule fois
+    const alreadyRated = book.ratings.find(
+      (rating) => rating.userId === req.auth.userId,
     );
+    if (alreadyRated) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Vous avez déjà noté ce livre" });
+    }
+
+    // le userId vient du token, pas du body
+    book.ratings.push({ userId: req.auth.userId, grade: grade });
+
+    // moyenne arrondie à 1 chiffre après la virgule
+    const total = book.ratings.reduce((sum, rating) => sum + rating.grade, 0);
+    book.averageRating = Math.round((total / book.ratings.length) * 10) / 10;
+
+    const updatedBook = await book.save();
+    res.status(StatusCodes.OK).json(updatedBook);
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Erreur du serveur." });
+  }
 };
