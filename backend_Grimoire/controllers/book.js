@@ -6,7 +6,7 @@ const Book = require("../models/Book");
 exports.getAllBooks = (req, res, next) => {
   Book.find()
     .then((books) => res.status(200).json(books))
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
 };
 
 // getOneBook : renvoie un seul livre, avec son id
@@ -20,7 +20,7 @@ exports.getOneBook = (req, res, next) => {
       }
       res.status(200).json(book);
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
 };
 
 // getBestRating : renvoie les 3 livres les mieux notés
@@ -30,7 +30,7 @@ exports.getBestRating = (req, res, next) => {
     .sort({ averageRating: -1 })
     .limit(3) // on garde les 3 premiers
     .then((books) => res.status(200).json(books))
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
 };
 
 // createBook : crée un livre
@@ -75,7 +75,7 @@ exports.createBook = (req, res, next) => {
         }
         return res.status(400).json({ errors });
       }
-      res.status(500).json({ error });
+      res.status(500).json({ message: "Erreur du serveur." });
     });
 };
 
@@ -144,12 +144,12 @@ exports.modifyBook = (req, res, next) => {
               .status(400)
               .json({ errors: { [error.path]: error.message } });
           }
-          res.status(500).json({ error });
+          res.status(500).json({ message: "Erreur du serveur." });
         });
     })
     .catch((error) => {
       if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-      res.status(500).json({ error });
+      res.status(500).json({ message: "Erreur du serveur." });
     });
 };
 // deleteBook : supprime un livre et son image (seulement par son créateur)
@@ -171,10 +171,12 @@ exports.deleteBook = (req, res, next) => {
       fs.unlink(`images/${filename}`, () => {
         Book.deleteOne({ _id: req.params.id })
           .then(() => res.status(200).json({ message: "Livre supprimé !" }))
-          .catch((error) => res.status(500).json({ error }));
+          .catch((error) =>
+            res.status(500).json({ message: "Erreur du serveur." }),
+          );
       });
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
 };
 
 // rateBook : ajoute une note et recalcule la moyenne
@@ -212,7 +214,9 @@ exports.rateBook = (req, res, next) => {
       book
         .save()
         .then((updatedBook) => res.status(200).json(updatedBook))
-        .catch((error) => res.status(500).json({ error }));
+        .catch((error) =>
+          res.status(500).json({ message: "Erreur du serveur." }),
+        );
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
 };

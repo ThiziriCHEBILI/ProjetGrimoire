@@ -26,10 +26,10 @@ exports.signup = (req, res, next) => {
             }
             return res.status(400).json({ errors });
           }
-          res.status(500).json({ error });
+          res.status(500).json({ message: "Erreur du serveur." });
         });
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
 };
 
 exports.login = (req, res, next) => {
@@ -61,7 +61,9 @@ exports.login = (req, res, next) => {
             }),
           });
         })
-        .catch((error) => res.status(500).json({ error }));
+        .catch((error) =>
+          res.status(500).json({ message: "Erreur du serveur." }),
+        );
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) => res.status(500).json({ message: "Erreur du serveur." }));
 };
