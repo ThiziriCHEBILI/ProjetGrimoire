@@ -1,5 +1,6 @@
 const sharp = require("sharp");
 const path = require("path");
+const { StatusCodes } = require("http-status-codes");
 
 module.exports = (req, res, next) => {
   if (!req.file) {
@@ -18,6 +19,8 @@ module.exports = (req, res, next) => {
       next();
     })
     .catch(() =>
-      res.status(400).json({ message: "Le fichier n'est pas une image." }),
+      res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Le fichier n'est pas une image." }),
     );
 };

@@ -1,12 +1,17 @@
 const fs = require("fs");
 const Book = require("../models/Book");
+const { StatusCodes } = require("http-status-codes");
 
 // getAllBooks : renvoie tous les livres
 // Route : GET /api/books (pas besoin d'être connecté)
 exports.getAllBooks = (req, res, next) => {
   Book.find()
-    .then((books) => res.status(200).json(books))
-    .catch((error) => res.status(500).json({ error }));
+    .then((books) => res.status(StatusCodes.OK).json(books))
+    .catch((error) =>
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." }),
+    );
 };
 
 // getOneBook : renvoie un seul livre, avec son id
@@ -16,11 +21,17 @@ exports.getOneBook = (req, res, next) => {
     .then((book) => {
       // la recherche a marché, mais aucun livre avec cet id
       if (!book) {
-        return res.status(404).json({ message: "Livre non trouvé" });
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ message: "Livre non trouvé" });
       }
-      res.status(200).json(book);
+      res.status(StatusCodes.OK).json(book);
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." }),
+    );
 };
 
 // getBestRating : renvoie les 3 livres les mieux notés
@@ -29,8 +40,12 @@ exports.getBestRating = (req, res, next) => {
   Book.find()
     .sort({ averageRating: -1 })
     .limit(3) // on garde les 3 premiers
-    .then((books) => res.status(200).json(books))
-    .catch((error) => res.status(500).json({ error }));
+    .then((books) => res.status(StatusCodes.OK).json(books))
+    .catch((error) =>
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." }),
+    );
 };
 
 // createBook : crée un livre
@@ -38,7 +53,9 @@ exports.getBestRating = (req, res, next) => {
 exports.createBook = (req, res, next) => {
   // sans image, on ne peut pas créer l'imageUrl
   if (!req.file) {
-    return res.status(400).json({ message: "Image obligatoire" });
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Image obligatoire" });
   }
 
   let bookObject;
@@ -47,7 +64,7 @@ exports.createBook = (req, res, next) => {
   } catch (error) {
     fs.unlink(`images/${req.file.filename}`, () => {});
     return res
-      .status(400)
+      .status(StatusCodes.BAD_REQUEST)
       .json({ message: "Les données envoyées ne sont pas un JSON valide." });
   }
 
@@ -65,7 +82,9 @@ exports.createBook = (req, res, next) => {
 
   book
     .save() // enregistre dans la base
-    .then(() => res.status(201).json({ message: "Livre enregistré !" }))
+    .then(() =>
+      res.status(StatusCodes.CREATED).json({ message: "Livre enregistré !" }),
+    )
     .catch((error) => {
       fs.unlink(`images/${req.file.filename}`, () => {});
       if (error.name === "ValidationError") {
@@ -73,9 +92,11 @@ exports.createBook = (req, res, next) => {
         for (const field in error.errors) {
           errors[field] = error.errors[field].message;
         }
-        return res.status(400).json({ errors });
+        return res.status(StatusCodes.BAD_REQUEST).json({ errors });
       }
-      res.status(500).json({ error });
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." });
     });
 };
 
@@ -93,7 +114,7 @@ exports.modifyBook = (req, res, next) => {
   } catch (error) {
     fs.unlink(`images/${req.file.filename}`, () => {});
     return res
-      .status(400)
+      .status(StatusCodes.BAD_REQUEST)
       .json({ message: "Les données envoyées ne sont pas un JSON valide." });
   }
 
@@ -107,12 +128,16 @@ exports.modifyBook = (req, res, next) => {
     .then((book) => {
       if (!book) {
         if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-        return res.status(404).json({ message: "Livre non trouvé" });
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ message: "Livre non trouvé" });
       }
       // on compare le créateur du livre avec la personne du token
       if (book.userId !== req.auth.userId) {
         if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-        return res.status(403).json({ message: "403: unauthorized request" });
+        return res
+          .status(StatusCodes.FORBIDDEN)
+          .json({ message: "403: unauthorized request" });
       }
 
       Book.updateOne(
@@ -128,7 +153,7 @@ exports.modifyBook = (req, res, next) => {
               if (error) console.log(error);
             });
           }
-          res.status(200).json({ message: "Livre modifié !" });
+          res.status(StatusCodes.OK).json({ message: "Livre modifié !" });
         })
         .catch((error) => {
           if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
@@ -137,14 +162,23 @@ exports.modifyBook = (req, res, next) => {
             for (const field in error.errors) {
               errors[field] = error.errors[field].message;
             }
-            return res.status(400).json({ errors });
+            return res.status(StatusCodes.BAD_REQUEST).json({ errors });
           }
-          res.status(500).json({ error });
+          if (error.name === "CastError") {
+            return res
+              .status(StatusCodes.BAD_REQUEST)
+              .json({ errors: { [error.path]: error.message } });
+          }
+          res
+            .status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .json({ message: "Erreur du serveur." });
         });
     })
     .catch((error) => {
       if (req.file) fs.unlink(`images/${req.file.filename}`, () => {});
-      res.status(500).json({ error });
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." });
     });
 };
 // deleteBook : supprime un livre et son image (seulement par son créateur)
@@ -153,10 +187,14 @@ exports.deleteBook = (req, res, next) => {
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (!book) {
-        return res.status(404).json({ message: "Livre non trouvé" });
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ message: "Livre non trouvé" });
       }
       if (book.userId !== req.auth.userId) {
-        return res.status(403).json({ message: "403: unauthorized request" });
+        return res
+          .status(StatusCodes.FORBIDDEN)
+          .json({ message: "403: unauthorized request" });
       }
 
       // on récupère le nom du fichier à partir de l'imageUrl
@@ -165,11 +203,21 @@ exports.deleteBook = (req, res, next) => {
       // d'abord on supprime l'image, ensuite le livre
       fs.unlink(`images/${filename}`, () => {
         Book.deleteOne({ _id: req.params.id })
-          .then(() => res.status(200).json({ message: "Livre supprimé !" }))
-          .catch((error) => res.status(500).json({ error }));
+          .then(() =>
+            res.status(StatusCodes.OK).json({ message: "Livre supprimé !" }),
+          )
+          .catch((error) =>
+            res
+              .status(StatusCodes.INTERNAL_SERVER_ERROR)
+              .json({ message: "Erreur du serveur." }),
+          );
       });
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." }),
+    );
 };
 
 // rateBook : ajoute une note et recalcule la moyenne
@@ -179,14 +227,16 @@ exports.rateBook = (req, res, next) => {
 
   if (isNaN(grade) || grade < 0 || grade > 5) {
     return res
-      .status(400)
+      .status(StatusCodes.BAD_REQUEST)
       .json({ message: "La note doit être comprise entre 0 et 5" });
   }
 
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (!book) {
-        return res.status(404).json({ message: "Livre non trouvé" });
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ message: "Livre non trouvé" });
       }
 
       // on cherche si cette personne a déjà noté ce livre
@@ -195,7 +245,7 @@ exports.rateBook = (req, res, next) => {
       );
       if (alreadyRated) {
         return res
-          .status(400)
+          .status(StatusCodes.BAD_REQUEST)
           .json({ message: "Vous avez déjà noté ce livre" });
       }
 
@@ -206,8 +256,16 @@ exports.rateBook = (req, res, next) => {
 
       book
         .save()
-        .then((updatedBook) => res.status(200).json(updatedBook))
-        .catch((error) => res.status(500).json({ error }));
+        .then((updatedBook) => res.status(StatusCodes.OK).json(updatedBook))
+        .catch((error) =>
+          res
+            .status(StatusCodes.INTERNAL_SERVER_ERROR)
+            .json({ message: "Erreur du serveur." }),
+        );
     })
-    .catch((error) => res.status(500).json({ error }));
+    .catch((error) =>
+      res
+        .status(StatusCodes.INTERNAL_SERVER_ERROR)
+        .json({ message: "Erreur du serveur." }),
+    );
 };
