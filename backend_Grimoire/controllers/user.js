@@ -18,7 +18,16 @@ exports.signup = (req, res, next) => {
       user
         .save()
         .then(() => res.status(201).json({ message: "Utilisateur créé !" }))
-        .catch((error) => res.status(400).json({ error }));
+        .catch((error) => {
+          if (error.name === "ValidationError") {
+            const errors = {};
+            for (const field in error.errors) {
+              errors[field] = error.errors[field].message;
+            }
+            return res.status(400).json({ errors });
+          }
+          res.status(500).json({ error });
+        });
     })
     .catch((error) => res.status(500).json({ error }));
 };
